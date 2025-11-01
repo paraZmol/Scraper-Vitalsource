@@ -4,11 +4,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import json # <-- ¡NUEVO! Importamos la biblioteca JSON nativa
 
 # --- CONFIGURACIÓN ---
 URL_HOME = "https://full-bookshelf.vitalsource.com/home/explore"
 ARCHIVO_SALIDA_CSV = "libros_vitalsource_COMPLETO.csv"
-ARCHIVO_SALIDA_JSON = "libros_vitalsource_COMPLETO.json"
+ARCHIVO_SALIDA_JSON = "libros_vitalsource_RESPALDO.json"
 
 # --- FUNCIÓN DE LOGIN (Sin cambios) ---
 def esperar_login(driver):
@@ -30,12 +31,8 @@ def esperar_login(driver):
         print(f"Error: No se encontró el botón 'View All'. {e}")
         return False
 
-# --- ¡¡FUNCIÓN DE EXTRACCIÓN MEJORADA (v6)!! ---
+# --- FUNCIÓN PARA EXTRAER DATOS DEL PANEL (Sin cambios, v6) ---
 def extraer_datos_del_panel(driver):
-    """
-    Intenta extraer todos los datos posibles del panel de detalles,
-    probando múltiples selectores para los elementos que cambian.
-    """
     try:
         panel = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, "._panelOuter_1hhj1_1"))
@@ -46,22 +43,19 @@ def extraer_datos_del_panel(driver):
         editorial = "PEARSON" # Valor por defecto
         portada_url = None
 
-        # --- LÓGICA DE TÍTULO (Prueba los 3 tipos) ---
+        # --- Lógica de Título (Prueba los 3 tipos) ---
         try:
-            # Try 1: Libro Normal (es un link <a>)
             titulo_panel = panel.find_element(By.CSS_SELECTOR, "a._title_o1x7c_18 h2").text.strip()
         except:
             try:
-                # Try 2: Libro "Borrow" (es un botón <button>)
                 titulo_panel = panel.find_element(By.CSS_SELECTOR, "button._title_o1x7c_18 h2").text.strip()
             except:
                 try:
-                    # Try 3: Libro "Unavailable" (es un div <div>)
                     titulo_panel = panel.find_element(By.CSS_SELECTOR, "div._title_o1x7c_18 h2").text.strip()
                 except:
                     print("  > ADVERTENCIA: No se pudo encontrar el TÍTULO.")
 
-        # --- EXTRACCIÓN INDEPENDIENTE (Como pediste) ---
+        # --- Extracción Independiente ---
         try:
             autor = panel.find_element(By.XPATH, "//dt[text()='Author(s)']/following-sibling::dd[1]").text.strip()
         except:
@@ -77,19 +71,17 @@ def extraer_datos_del_panel(driver):
         except:
             print("  > ADVERTENCIA: No se pudo encontrar la URL de la IMAGEN.")
 
-        # --- CIERRE DEL PANEL ---
+        # --- Cierre del Panel ---
         panel.find_element(By.CSS_SELECTOR, "button._closeButton_1hhj1_25").click()
         WebDriverWait(driver, 10).until(
             EC.invisibility_of_element_located((By.CSS_SELECTOR, "._panelOuter_1hhj1_1"))
         )
         
-        # Devolver todo lo que se encontró
-        # Si el título falló pero el autor no, devolverá (None, "Autor Ejemplo", "url", "Editorial")
         return titulo_panel, autor, portada_url, editorial
     
     except Exception as e:
         print(f"  > Error CRÍTICO procesando el panel: {e}")
-        return None, None, None, None # Devuelve todo vacío
+        return None, None, None, None
 
 # --- INICIO DEL SCRIPT (Sin cambios) ---
 
@@ -130,7 +122,7 @@ except Exception as e:
     driver.quit()
     exit()
 
-# --- BUCLE PRINCIPAL (¡LÓGICA DE ERROR CORREGIDA!) ---
+# --- BUCLE PRINCIPAL (Sin cambios, v6) ---
 i = 0
 while i < total_libros:
     print("---------------------------------------------------------")
@@ -149,7 +141,6 @@ while i < total_libros:
             i += 1
             continue
             
-        # 1. Scroll, Clic '...', Clic 'Book Details'
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", libro_actual)
         time.sleep(1) 
 
@@ -162,13 +153,9 @@ while i < total_libros:
         )
         book_details_button.click()
         
-        # 2. Extraer datos del panel
         titulo, autor, portada, editorial = extraer_datos_del_panel(driver)
         
-        # --- ¡NUEVA LÓGICA DE SALTO DE ERROR! ---
-        # Solo guardamos si se obtuvo AL MENOS UN DATO
         if titulo or autor or portada:
-            # Si el panel no dio título, usamos el de la tarjeta
             titulo_final = titulo if titulo else titulo_tarjeta 
             print(f"  > OK: {titulo_final} - {autor}")
             libros_data.append({
@@ -177,21 +164,18 @@ while i < total_libros:
             })
             titulos_procesados.add(titulo_final)
         else:
-            # FALLO TOTAL DEL PANEL (ej. Libro 36)
             print(f"  > ERROR: No se pudieron extraer datos del panel para '{titulo_tarjeta}'.")
             print("  > Se guardará un marcador de error y se saltará al siguiente. NO SE RECARGARÁ.")
             libros_data.append({
                 "N": i + 1, "Libro": f"ERROR AL PROCESAR: {titulo_tarjeta}", "Autor": "FALLO",
                 "URL img": None, "Plataforma": "VITAL SOURCE", "Editorial": "PEARSON"
             })
-            titulos_procesados.add(titulo_tarjeta) # Marcar como procesado
+            titulos_procesados.add(titulo_tarjeta)
 
-        # ¡CLAVE! Avanzamos al siguiente libro (i+1) TANTO SI FALLA COMO SI TIENE ÉXITO.
         i += 1 
-        time.sleep(1) # Pausa normal
+        time.sleep(1) 
 
     except Exception as e:
-        # --- PLAN DE RECUPERACIÓN (SOLO PARA ERRORES CRÍTICOS) ---
         print(f"  > Error CRÍTICO en el libro {i+1} (ej. no se pudo hacer clic): {e}")
         print(f"  > La página se rompió. Volviendo al 'Home' para reiniciar sesión...")
         
@@ -217,9 +201,8 @@ while i < total_libros:
         except Exception as e_recarga:
             print(f"  > Fallo catastrófico al recargar. Saliendo. {e_recarga}")
             break
-        # No incrementamos 'i', para que el bucle re-intente el libro que falló.
 
-# --- FINALIZACIÓN ---
+# --- ¡¡FINALIZACIÓN CORREGIDA (CSV y JSON con formato)!! ---
 print("=========================================================")
 print("Proceso completado. Cerrando el navegador.")
 driver.quit()
@@ -227,10 +210,31 @@ driver.quit()
 if libros_data:
     print(f"Guardando {len(libros_data)} libros en los archivos...")
     df = pd.DataFrame(libros_data)
+    
     columnas_ordenadas = ["N", "Libro", "Autor", "URL img", "Plataforma", "Editorial"]
-    df = df[columnas_ordenadas]
+    df = df.reindex(columns=columnas_ordenadas) 
+    
+    # 1. Guardar en CSV (para Excel)
     df.to_csv(ARCHIVO_SALIDA_CSV, index=False, sep=';', encoding='utf-8-sig')
-    df.to_json(ARCHIVO_SALIDA_JSON, orient='records', indent=4, ensure_ascii=False)
-    print(f"¡Éxito! Archivos '{ARCHIVO_SALIDA_CSV}' y '{ARCHIVO_SALIDA_JSON}' creados.")
+    print(f"¡Éxito! Archivo '{ARCHIVO_SALIDA_CSV}' (Excel) creado.")
+    
+    # 2. Guardar en JSON (con el formato de espacio correcto)
+    try:
+        # Convertir el DataFrame a una lista de diccionarios (formato Python)
+        data_list = df.to_dict(orient='records')
+        
+        # Usar la biblioteca 'json' para escribir el archivo
+        with open(ARCHIVO_SALIDA_JSON, 'w', encoding='utf-8') as f:
+            # indent=4 : Pone los saltos de línea y la sangría
+            # ensure_ascii=False : Guarda los acentos (ej. "Enfermería")
+            # separators=(',', ': ') : ¡ESTA ES LA CLAVE! Pone el espacio después de los dos puntos.
+            json.dump(data_list, f, indent=4, ensure_ascii=False, separators=(',', ': '))
+            
+        print(f"¡Éxito! Archivo '{ARCHIVO_SALIDA_JSON}' (JSON) creado con el formato correcto.")
+        print("\nAhora puedes abrir el archivo .json, copiar su contenido y pegarlo en Word.")
+        
+    except Exception as e:
+        print(f"  > Error al crear el archivo JSON: {e}")
+
 else:
     print("No se pudo extraer ningún libro.")
