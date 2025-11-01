@@ -55,7 +55,7 @@ Para que este script funcione en una nueva computadora, se deben seguir estos 3 
     * `msedgedriver.exe` (el conector que acabas de descargar).
 
 Tu carpeta debe verse así:
-*Mi_Carpeta_Scraper
+* Mi_Carpeta_Scraper
 *    |- scraper_vitalsource.py
 *    |- msedgedriver.exe
 
