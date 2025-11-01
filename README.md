@@ -55,9 +55,11 @@ Para que este script funcione en una nueva computadora, se deben seguir estos 3 
     * `msedgedriver.exe` (el conector que acabas de descargar).
 
 Tu carpeta debe verse así:
-* Mi_Carpeta_Scraper
-*    |- scraper_vitalsource.py
-*    |- msedgedriver.exe
+```bash
+Mi_Carpeta_Scraper
+    |- scraper_vitalsource.py
+    |- msedgedriver.exe
+```
 
 ### Paso 3: Ejecutar el Script (pasos de como se usa el scrit y que debes de hacer)
 
